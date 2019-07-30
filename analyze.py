@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import dnf
+import dnf, json
 
 
 # === Data Structures ===
@@ -42,6 +42,10 @@ import dnf
 # Group = {
 #     "name": "group",
 #     "size": 423432423,
+#     "packages": [
+#         "package1",
+#         "package2"
+#     ],
 #     "requires": [
 #         "capability 1",
 #         "capability 2"
@@ -70,7 +74,7 @@ def load_packages(root="/", releasever=None):
     base = dnf.Base()
     if releasever:
         base.conf.substitutions['releasever'] = releasever
-    base.conf.installroot = "/home/fedora/test"
+    base.conf.installroot = root
     base.fill_sack(load_available_repos=False)
     query = base.sack.query()
     installed = list(query.installed())
@@ -103,20 +107,57 @@ def load_packages(root="/", releasever=None):
 
 
 
+
+
+
 def compute_graph(packages, groups=None):
 
     graph = {}
 
     for _, package in packages.items():
         node = {}
-        node["name"] = package["name"]
-        node["size"] = package["size"]
-        node["dependencies"] = package["requires_resolved"]
+        name = package["name"]
 
-        graph[node["name"]] = node
+        # If package is in a group, add it to the group
+        if groups:
+            for group in groups:
+                if name in group["packages"]:
+                    node["name"] = group["name"]
+                    node["size"] = group["size"]
+                    node["dependencies"] = group["requires_resolved"]
+
+                    graph[node["name"]] = node
+
+        # Otherwise (package is not in a group) just add it to the graph
+        if not node:
+            node["name"] = package["name"]
+            node["size"] = package["size"]
+
+            # If groups are involved, this package might depend on a package that's in a group.
+            # If that's the case, the "dependencies" field needs to contain the name of that
+            # group instead of a name of the package, because the package is not on the graph. The group is.
+            if groups:
+                pkg_deps = set(package["requires_resolved"])
+
+                for group in groups:
+                    group_pkgs = set(group["packages"])
+                    requires_in_group = pkg_deps & group_pkgs
+
+                    if requires_in_group:
+                        pkg_deps -= requires_in_group
+                        pkg_deps.add(group["name"])
+
+                node["dependencies"] = list(pkg_deps)
+
+            else:
+                node["dependencies"] = package["requires_resolved"]
+            
+
+            graph[node["name"]] = node
 
     return graph
 
+        
 
 
 def graph_to_dot(graph):
@@ -138,11 +179,76 @@ def graph_to_dot(graph):
 
 
 
+def packages_to_group(name, packages):
+
+    group = {}
+    group["name"] = name
+    group["size"] = 0
+
+    group_packages = set()
+    requires = set()
+    requires_resolved = set()
+
+    for _, package in packages.items():
+        group_packages.add(package["name"])
+
+        for req in package["requires"]:
+            requires.add(req)
+
+        for req_pkg in package["requires_resolved"]:
+            requires_resolved.add(req_pkg)
+
+        group["size"] += package["size"]
+
+    group["packages"] = list(group_packages)
+    group["requires"] = list(requires)
+    group["requires_resolved"] = list(requires_resolved - group_packages)
+
+    return group
+
+
+
+def dump_data(path, data):
+    with open(path, 'w') as file:
+        json.dump(data, file)
+
+
+
+def load_data(path):
+    with open(path, 'r') as file:
+        data = json.load(file)
+
+    return data
+
+
+
 def main():
-    packages = load_packages("/home/fedora/test")
-    graph = compute_graph(packages)
+
+    base_pkgs = load_data("./container-base-packages.json")
+    httpd_pkgs = load_data("./container-httpd-packages.json")
+
+    group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
+
+    graph = compute_graph(httpd_pkgs, [group])
     dot = graph_to_dot(graph)
+
     print(dot)
+
+#    packages = load_packages("/home/fedora/installs/cowsay")
+#
+#    packages.pop("glibc", None)
+#
+#    group = packages_to_group("COWSAY", packages)
+#
+#    packages2 = load_packages("/home/fedora/installs/cowsay_beefymiracle")
+#
+#    graph = compute_graph(packages2, [group])
+#    dot = graph_to_dot(graph)
+#
+#    print(dot)
+#
+
+
 
 if __name__ == "__main__":
     main()
