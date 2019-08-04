@@ -371,6 +371,10 @@ def main():
     parser.add_argument("how", metavar="HOW", choices=["graph", "directed-graph"], help="How you want to see it. Choose from 'graph' or 'directed-graph'")
     parser.add_argument("where", metavar="WHERE", help="Filename of the output")
 
+    parser.add_argument("--group-container", action="append", nargs=2, metavar=("GRPUP_NAME", "CONTAINER"), help="Group packages in the given container into a single node to simplify the graph. Useful, for example, when visualizing changes on top of a base image.")
+
+    parser.add_argument("--sizes", action="store_true", help="Show package sizes on the graph")
+
     args = parser.parse_args()
 
     # Is it a container image or a path?
@@ -381,9 +385,23 @@ def main():
         # A file path!
         packages = load_packages_from_path(args.what)
 
-    
-    graph = compute_graph(packages)
-    dot = graph_to_dot(graph)
+    if args.group_container:
+        groups = []
+
+        for container in args.group_container:
+            grp_name = container[0]
+            grp_pkgs = load_packages_from_container_image(container[1])
+
+            group = packages_to_group(grp_name, grp_pkgs)
+
+            groups.append(group)
+
+        graph = compute_graph(packages, groups)
+
+    else:
+        graph = compute_graph(packages)
+
+    dot = graph_to_dot(graph, sizes=args.sizes)
 
     if args.how == "directed-graph":
         svg = dot_to_directed_graph_svg(dot)
@@ -392,41 +410,6 @@ def main():
 
     with open(args.where, "w") as output:
         output.write(svg)
-
-    
-    
-    
-
-
-
-
-    #base_pkgs = load_data("./container-base-packages.json")
-
-    #base_pkgs = load_packages_from_container_image("fedora:30")
-    #httpd_pkgs = load_data("./container-httpd-packages.json")
-
-    #group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
-
-    #graph = compute_graph(httpd_pkgs, [group])
-    #graph = compute_graph(base_pkgs)
-    #dot = graph_to_dot(graph, sizes=True)
-
-    #print(dot)
-
-#    packages = load_packages("/home/fedora/installs/cowsay")
-#
-#    packages.pop("glibc", None)
-#
-#    group = packages_to_group("COWSAY", packages)
-#
-#    packages2 = load_packages("/home/fedora/installs/cowsay_beefymiracle")
-#
-#    graph = compute_graph(packages2, [group])
-#    dot = graph_to_dot(graph)
-#
-#    print(dot)
-#
-
 
 
 if __name__ == "__main__":
