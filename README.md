@@ -46,7 +46,7 @@ $ ./showme asamalik/fedora-httpd:f30 directed-graph test.svg --sizes --group-con
 
 ![directed graph of httpd](https://asamalik.fedorapeople.org/showme/httpd-directed-graph-min.jpg)
 
-See the original [directed graph of httpd](https://asamalik.fedorapeople.org/showme/httpd-directed-graph-min.svg). Again, it's interactive!
+See the original [directed graph of httpd](https://asamalik.fedorapeople.org/showme/httpd-directed-graph.svg). Again, it's interactive!
 
 ## Installation
 
