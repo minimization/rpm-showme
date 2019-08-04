@@ -191,10 +191,10 @@ def graph_to_dot(graph, sizes=False):
 
     if sizes:
         for _, node in graph.items():
-            dot += "\"" + node["name"] + "\n(" + size(node["size"])  + ")\" -> {"
+            dot += "\"" + node["name"] + " (" + size(node["size"])  + ")\" -> {"
             dot += "\n"
             for dep in node["dependencies"]:
-                dot += "    \"" + dep + "\n(" + size(graph[dep]["size"]) + ")\""
+                dot += "    \"" + dep + " (" + size(graph[dep]["size"]) + ")\""
                 dot += "\n"
             dot += "};"
             dot += "\n"
@@ -263,12 +263,11 @@ def main():
     #base_pkgs = load_data("./container-base-packages.json")
 
     base_pkgs = load_packages_from_container_image("fedora:30")
-    #httpd_pkgs = load_data("./container-httpd-packages.json")
+    httpd_pkgs = load_data("./container-httpd-packages.json")
 
-    #group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
+    group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
 
-    #graph = compute_graph(httpd_pkgs, [group])
-    graph = compute_graph(base_pkgs)
+    graph = compute_graph(httpd_pkgs, [group])
     dot = graph_to_dot(graph, sizes=True)
 
     print(dot)
