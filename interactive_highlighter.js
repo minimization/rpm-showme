@@ -34,7 +34,7 @@ document.addEventListener('click', function(e) {
             if (title[0] == text) {
               id = nodes[index].id;
               //console.log("ID:   " + id);
-              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "5");
+              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
               document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
               document.getElementById(id).querySelector("path").setAttribute("stroke", "#aa3333");
               document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
@@ -44,7 +44,7 @@ document.addEventListener('click', function(e) {
             }
             if (title[1] == text) {
               id = nodes[index].id;
-              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "5");
+              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
               document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
               document.getElementById(id).querySelector("path").setAttribute("stroke", "#333377");
               document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
