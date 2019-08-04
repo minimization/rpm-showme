@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import dnf, json
+import dnf, json, subprocess, tempfile
 
 
 # === Data Structures ===
@@ -66,19 +66,7 @@ import dnf, json
 # }
 
 
-
-def load_packages(root="/", releasever=None):
-
-    # Look at the system and get a list of all installed RPM packages
-    # in the as a list of DNF Package objects
-    base = dnf.Base()
-    if releasever:
-        base.conf.substitutions['releasever'] = releasever
-    base.conf.installroot = root
-    base.fill_sack(load_available_repos=False)
-    query = base.sack.query()
-    installed = list(query.installed())
-
+def _create_packages_structure(installed, query):
     # Make it into a list of my Package structures
     packages = {}
     for pkg in installed:
@@ -105,8 +93,38 @@ def load_packages(root="/", releasever=None):
 
     return packages
 
+def load_packages(root="/", releasever=None):
+
+    # Look at the system and get a list of all installed RPM packages
+    # in the as a list of DNF Package objects
+    base = dnf.Base()
+    if releasever:
+        base.conf.substitutions['releasever'] = releasever
+    base.conf.installroot = root
+    base.fill_sack(load_available_repos=False)
+    query = base.sack.query()
+    installed = list(query.installed())
+
+    return _create_packages_structure(installed, query)
 
 
+def load_packages_from_container_image(image):
+    base = dnf.Base()
+    
+    data = subprocess.check_output(['podman', 'inspect', image])
+    #size_bytes = json.loads(data)[0]["Size"]
+
+    # Extract DNF and RPM data
+    with tempfile.TemporaryDirectory() as tmp:
+        cmd = "mkdir -p /workdir/var/lib && cp -r /var/lib/dnf /workdir/var/lib/ && cp -r /var/lib/rpm /workdir/var/lib/"
+        subprocess.run(['podman', 'run', '--rm', '-v', tmp+':/workdir:z', '-v', 'copy.sh:/copy.sh:z', image, '/bin/sh', '-c', cmd])
+        base.conf.installroot = tmp
+        base.fill_sack()
+
+    query = base.sack.query()
+    installed = list(query.installed())
+
+    return _create_packages_structure(installed, query)
 
 
 
@@ -159,19 +177,37 @@ def compute_graph(packages, groups=None):
 
         
 
+def size(num, suffix='B'):
+    for unit in ['','k','M','G']:
+        if abs(num) < 1024.0:
+            return "%3.1f %s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f %s%s" % (num, 'T', suffix)
 
-def graph_to_dot(graph):
+
+def graph_to_dot(graph, sizes=False):
 
     dot = "digraph packages {\n"
 
-    for _, node in graph.items():
-        dot += "\"" + node["name"] + "\" -> {"
-        dot += "\n"
-        for dep in node["dependencies"]:
-            dot += "    \"" + dep + "\""
+    if sizes:
+        for _, node in graph.items():
+            dot += "\"" + node["name"] + "\n(" + size(node["size"])  + ")\" -> {"
             dot += "\n"
-        dot += "};"
-        dot += "\n"
+            for dep in node["dependencies"]:
+                dot += "    \"" + dep + "\n(" + size(graph[dep]["size"]) + ")\""
+                dot += "\n"
+            dot += "};"
+            dot += "\n"
+
+    else:
+        for _, node in graph.items():
+            dot += "\"" + node["name"] + "\" -> {"
+            dot += "\n"
+            for dep in node["dependencies"]:
+                dot += "    \"" + dep + "\""
+                dot += "\n"
+            dot += "};"
+            dot += "\n"
 
     dot += "}"
 
@@ -224,13 +260,16 @@ def load_data(path):
 
 def main():
 
-    base_pkgs = load_data("./container-base-packages.json")
-    httpd_pkgs = load_data("./container-httpd-packages.json")
+    #base_pkgs = load_data("./container-base-packages.json")
 
-    group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
+    base_pkgs = load_packages_from_container_image("fedora:30")
+    #httpd_pkgs = load_data("./container-httpd-packages.json")
 
-    graph = compute_graph(httpd_pkgs, [group])
-    dot = graph_to_dot(graph)
+    #group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
+
+    #graph = compute_graph(httpd_pkgs, [group])
+    graph = compute_graph(base_pkgs)
+    dot = graph_to_dot(graph, sizes=True)
 
     print(dot)
 
