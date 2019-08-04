@@ -10,17 +10,36 @@ Just tell the script what you what to show, how you want to see it, and where yo
 $ ./showme WHAT HOW WHERE
 ```
 
-So, for example:
+### Looking at container images
+
+To look at the Fedora 30 container base image, run:
 
 ```
 $ ./showme fedora:30 graph output.svg --sizes
 ```
 
-... produces a graph of all packages in the fedora:30 container image including sizes of all individual packages and some basic clustering. Clicking on a package highlights its relations to other packages.
+... which produces a graph of all packages in the fedora:30 container image including sizes of all individual packages and some basic clustering. Clicking on a package highlights its relations to other packages.
 
 ![Fedora 30 container image graph](https://asamalik.fedorapeople.org/showme/fedora-base-image-min.jpg)
 
 See the original [Fedora 30 container image graph](https://asamalik.fedorapeople.org/showme/fedora-base-image.svg) and try interacting with it!
+
+
+### Looking at file paths
+
+To look at your own Fedora system, run:
+
+```
+$ ./showme / graph output.svg
+```
+
+You can also look at an arbitrary DNF installation:
+
+```
+$ mkdir /tmp/cowsay
+$ sudo dnf --installroot /tmp/cowsay --releasever 30 install cowsay
+$ ./showme ./ graph output.svg
+```
 
 ### Grouping packages
 
