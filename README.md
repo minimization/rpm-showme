@@ -18,7 +18,7 @@ $ ./showme fedora:30 graph output.svg --sizes
 
 ... produces a graph of all packages in the fedora:30 container image including sizes of all individual packages and some basic clustering. Clicking on a package highlights its relations to other packages.
 
-![Fedora 30 container image graph](https://asamalik.fedorapeople.org/showme/fedora-base-image.jpg)
+![Fedora 30 container image graph](https://asamalik.fedorapeople.org/showme/fedora-base-image-min.jpg)
 
 See the original [Fedora 30 container image graph](https://asamalik.fedorapeople.org/showme/fedora-base-image.svg) and try interacting with it!
 
@@ -32,7 +32,7 @@ Example:
 $ ./showme asamalik/fedora-httpd:f30 graph test.svg --sizes --group-container "Fedora 30 Base Image" fedora:30
 ```
 
-![httpd on top of the Fedora base image graph](https://asamalik.fedorapeople.org/showme/httpd-simplified.jpg)
+![httpd on top of the Fedora base image graph](https://asamalik.fedorapeople.org/showme/httpd-simplified-min.jpg)
 
 See the original [httpd on top of the Fedora base image graph](https://asamalik.fedorapeople.org/showme/httpd-simplified.svg).
 
@@ -44,9 +44,9 @@ The above example might be better shown as a directed graph:
 $ ./showme asamalik/fedora-httpd:f30 directed-graph test.svg --sizes --group-container "Fedora 30 Base Image" fedora:30
 ```
 
-![directed graph of httpd](https://asamalik.fedorapeople.org/showme/httpd-directed-graph.jpg)
+![directed graph of httpd](https://asamalik.fedorapeople.org/showme/httpd-directed-graph-min.jpg)
 
-See the original [directed graph of httpd](https://asamalik.fedorapeople.org/showme/httpd-directed-graph.jpg). Again, it's interactive!
+See the original [directed graph of httpd](https://asamalik.fedorapeople.org/showme/httpd-directed-graph-min.svg). Again, it's interactive!
 
 ## Installation
 
