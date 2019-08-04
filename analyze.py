@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import dnf, json, subprocess, tempfile
+import dnf, json, subprocess, tempfile, argparse
 
 
 # === Data Structures ===
@@ -93,7 +93,7 @@ def _create_packages_structure(installed, query):
 
     return packages
 
-def load_packages(root="/", releasever=None):
+def load_packages_from_path(root="/", releasever=None):
 
     # Look at the system and get a list of all installed RPM packages
     # in the as a list of DNF Package objects
@@ -257,20 +257,144 @@ def load_data(path):
     return data
 
 
+def dot_to_svg(dot):
+
+    stage1 = subprocess.run(["sfdp", "-Gstart=3", "-Goverlap=prism"], capture_output=True, input=dot, encoding="UTF-8")
+
+    stage2 = subprocess.run(["gvmap", "-e", "-d", "3"], capture_output=True, input=stage1.stdout, encoding="UTF-8")
+
+    stage3 = subprocess.run(["neato", "-Gstart=3", "-n", "-Ecolor=#44444455", "-Tsvg"], capture_output=True, input=stage2.stdout, encoding="UTF-8")
+
+    svg = str(stage3.stdout)
+
+    javascript = """
+<script type="text/javascript"><![CDATA[
+
+document.addEventListener('click', function(e) {
+      e = e || window.event;
+      var target = e.target || e.srcElement;
+          text = target.textContent || text.innerText;   
+
+          console.log("Clicked on: " + text);
+          // reset all strokes
+          var nodes = document.getElementsByClassName("edge");
+
+          for (index = 0, len = nodes.length; index < len; ++index) {
+              //var title = nodes[index].querySelector("title").textContent.split("->");
+              id = nodes[index].id;
+              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "1");
+              document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "0.5");
+              document.getElementById(id).querySelector("path").setAttribute("stroke", "#444444");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "1");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "0.5");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#444444");
+          }
+          // reset text highlight
+          pkgs = document.getElementsByClassName("node");
+          for (index2 = 0, len2 = pkgs.length; index2 < len2; ++index2) {
+              target_id = pkgs[index2].id;
+              document.getElementById(target_id).querySelector("text").setAttribute("font-weight", "normal");
+          }
+
+          // highlight deps
+          var nodes = document.getElementsByClassName("edge");
+          for (index = 0, len = nodes.length; index < len; ++index) {
+            var title = nodes[index].querySelector("title").textContent.split("->");
+
+            if (title[0] == text) {
+              id = nodes[index].id;
+              //console.log("ID:   " + id);
+              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
+              document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
+              document.getElementById(id).querySelector("path").setAttribute("stroke", "#aa3333");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "1");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#aa3333");
+
+            }
+            if (title[1] == text) {
+              id = nodes[index].id;
+              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
+              document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
+              document.getElementById(id).querySelector("path").setAttribute("stroke", "#333377");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "1");
+              document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#333377");
+            }
+
+            if (title[0] == text || title[1] == text) {
+              pkgs = document.getElementsByClassName("node");
+              for (index2 = 0, len2 = pkgs.length; index2 < len2; ++index2) {
+                var pkg_name = pkgs[index2].querySelector("title").textContent;
+                if (pkg_name == title[0] || pkg_name == title[1]) {
+                  target_id = pkgs[index2].id;
+                  document.getElementById(target_id).querySelector("text").setAttribute("font-weight", "bold");
+                }
+              }
+            }
+          }
+
+
+  }, false);
+
+]]></script>
+"""
+
+    return svg.split("</svg>")[0] + javascript + "\n</svg>\n"
+
+
 
 def main():
 
+    # Usage:
+    #
+    # $ showme feora:30 graph
+    # $ showme / graph
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("what", metavar="WHAT", help="What you want to see")
+    parser.add_argument("how", metavar="HOW", choices=["graph", "directed-graph"], help="How you want to see it. Choose from 'graph' or 'directed-graph'")
+    parser.add_argument("where", metavar="WHERE", help="Filename of the output")
+
+    args = parser.parse_args()
+
+    # Is it a container image or a path?
+    if ":" in args.what:
+        # A container image!
+        packages = load_packages_from_container_image(args.what)
+    else:
+        # A file path!
+        packages = load_packages_from_path(args.what)
+
+    
+    graph = compute_graph(packages)
+    dot = graph_to_dot(graph)
+
+    svg = dot_to_svg(dot)
+
+    with open(args.where, "w") as output:
+        output.write(svg)
+
+    
+    
+    
+
+
+
+
     #base_pkgs = load_data("./container-base-packages.json")
 
-    base_pkgs = load_packages_from_container_image("fedora:30")
-    httpd_pkgs = load_data("./container-httpd-packages.json")
+    #base_pkgs = load_packages_from_container_image("fedora:30")
+    #httpd_pkgs = load_data("./container-httpd-packages.json")
 
-    group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
+    #group = packages_to_group("<<fedora:30 base image>>", base_pkgs)
 
-    graph = compute_graph(httpd_pkgs, [group])
-    dot = graph_to_dot(graph, sizes=True)
+    #graph = compute_graph(httpd_pkgs, [group])
+    #graph = compute_graph(base_pkgs)
+    #dot = graph_to_dot(graph, sizes=True)
 
-    print(dot)
+    #print(dot)
 
 #    packages = load_packages("/home/fedora/installs/cowsay")
 #
