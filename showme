@@ -45,7 +45,23 @@ import dnf, json, subprocess, tempfile, argparse
 #     "requires_resolved": [
 #         "package2",
 #         "package3"
-#     ]
+#     ],
+#     "recommends": [
+#         "capability 1",
+#         "capability 2"
+#     ],
+#     "recommends_resolved": [
+#         "package2",
+#         "package3"
+#     ],
+#     "suggests": [
+#         "capability 1",
+#         "capability 2"
+#     ],
+#     "suggests_resolved": [
+#         "package2",
+#         "package3"
+#     ],
 # }
 # 
 # Group = {
@@ -62,7 +78,23 @@ import dnf, json, subprocess, tempfile, argparse
 #     "requires_resolved": [
 #         "package2",
 #         "package3"
-#     ]
+#     ],
+#     "recommends": [
+#         "capability 1",
+#         "capability 2"
+#     ],
+#     "recommends_resolved": [
+#         "package2",
+#         "package3"
+#     ],
+#     "suggests": [
+#         "capability 1",
+#         "capability 2"
+#     ],
+#     "suggests_resolved": [
+#         "package2",
+#         "package3"
+#     ],
 # }
 # 
 # Node = {
@@ -71,7 +103,11 @@ import dnf, json, subprocess, tempfile, argparse
 #     "dependencies": [
 #         "node1",
 #         "node2",
-#     ]
+#     ],
+#     "weak_dependencies": [
+#         "node1",
+#         "node2",
+#     ],
 # }
 
 
@@ -89,14 +125,34 @@ def _create_packages_structure(installed, query):
         package["size"] = pkg.installsize
         package["requires"] = []
         package["requires_resolved"] = []
+        package["recommends"] = []
+        package["recommends_resolved"] = []
+        package["suggests"] = []
+        package["suggests_resolved"] = []
 
         for req in pkg.requires:
             package["requires"].append(str(req))
+
+        for req in pkg.recommends:
+            package["recommends"].append(str(req))
+
+        for req in pkg.suggests:
+            package["suggests"].append(str(req))
 
         deps = query.installed()
         deps = deps.filter(provides=pkg.requires)
         for dep in deps:
             package["requires_resolved"].append(dep.name)
+
+        deps = query.installed()
+        deps = deps.filter(provides=pkg.recommends)
+        for dep in deps:
+            package["recommends_resolved"].append(dep.name)
+
+        deps = query.installed()
+        deps = deps.filter(provides=pkg.suggests)
+        for dep in deps:
+            package["suggests_resolved"].append(dep.name)
 
         packages[package["name"]] = package
 
@@ -145,13 +201,16 @@ def compute_graph(packages, groups=None):
         node = {}
         name = package["name"]
 
-        # If package is in a group, add it to the group
+        # When groups are used,
+        # and 'package' is in any of those,
+        # add those groups to the graph instead of the package.
         if groups:
             for group in groups:
                 if name in group["packages"]:
                     node["name"] = group["name"]
                     node["size"] = group["size"]
                     node["dependencies"] = group["requires_resolved"]
+                    node["weak_dependencies"] = list(set(group["recommends_resolved"]) | set(group["suggests_resolved"]))
 
                     graph[node["name"]] = node
 
@@ -160,24 +219,42 @@ def compute_graph(packages, groups=None):
             node["name"] = package["name"]
             node["size"] = package["size"]
 
+            # Package -> Group relations
+            #
             # If groups are involved, this package might depend on a package that's in a group.
             # If that's the case, the "dependencies" field needs to contain the name of that
             # group instead of a name of the package, because the package is not on the graph. The group is.
             if groups:
-                pkg_deps = set(package["requires_resolved"])
+                pkg_deps_requires = set(package["requires_resolved"])
+                pkg_deps_recommends = set(package["recommends_resolved"])
+                pkg_deps_suggests = set(package["suggests_resolved"])
 
                 for group in groups:
                     group_pkgs = set(group["packages"])
-                    requires_in_group = pkg_deps & group_pkgs
+
+                    requires_in_group = pkg_deps_requires & group_pkgs
+                    recommends_in_group = pkg_deps_recommends & group_pkgs
+                    suggests_in_group = pkg_deps_suggests & group_pkgs
 
                     if requires_in_group:
-                        pkg_deps -= requires_in_group
-                        pkg_deps.add(group["name"])
+                        pkg_deps_requires -= requires_in_group
+                        pkg_deps_requires.add(group["name"])
 
-                node["dependencies"] = list(pkg_deps)
+                    if recommends_in_group:
+                        pkg_deps_recommends -= recommends_in_group
+                        pkg_deps_recommends.add(group["name"])
 
+                    if suggests_in_group:
+                        pkg_deps_suggests -= suggests_in_group
+                        pkg_deps_suggests.add(group["name"])
+
+                node["dependencies"] = list(pkg_deps_requires)
+                node["weak_dependencies"] = list(pkg_deps_recommends | pkg_deps_suggests)
+
+            # Package -> Package relations
             else:
                 node["dependencies"] = package["requires_resolved"]
+                node["weak_dependencies"] = list(set(package["recommends_resolved"]) | set(package["suggests_resolved"]))
             
 
             graph[node["name"]] = node
@@ -199,6 +276,7 @@ def graph_to_dot(graph, sizes=False):
     dot = "digraph packages {\n"
 
     if sizes:
+        # Hard dependencies
         for _, node in graph.items():
             dot += "\"" + node["name"] + " (" + size(node["size"])  + ")\" -> {"
             dot += "\n"
@@ -208,7 +286,18 @@ def graph_to_dot(graph, sizes=False):
             dot += "};"
             dot += "\n"
 
+        # Weak dependencies
+        for _, node in graph.items():
+            dot += "\"" + node["name"] + " (" + size(node["size"])  + ")\" -> {"
+            dot += "\n"
+            for dep in node["weak_dependencies"]:
+                dot += "    \"" + dep + " (" + size(graph[dep]["size"]) + ")\""
+                dot += "\n"
+            dot += "}[style=dashed];"
+            dot += "\n"
+
     else:
+        # Hard dependencies
         for _, node in graph.items():
             dot += "\"" + node["name"] + "\" -> {"
             dot += "\n"
@@ -216,6 +305,16 @@ def graph_to_dot(graph, sizes=False):
                 dot += "    \"" + dep + "\""
                 dot += "\n"
             dot += "};"
+            dot += "\n"
+
+        # Weak dependencies
+        for _, node in graph.items():
+            dot += "\"" + node["name"] + "\" -> {"
+            dot += "\n"
+            for dep in node["weak_dependencies"]:
+                dot += "    \"" + dep + "\""
+                dot += "\n"
+            dot += "}[style=dashed];"
             dot += "\n"
 
     dot += "}"
@@ -233,6 +332,10 @@ def packages_to_group(name, packages):
     group_packages = set()
     requires = set()
     requires_resolved = set()
+    recommends = set()
+    recommends_resolved = set()
+    suggests = set()
+    suggests_resolved = set()
 
     for _, package in packages.items():
         group_packages.add(package["name"])
@@ -243,11 +346,27 @@ def packages_to_group(name, packages):
         for req_pkg in package["requires_resolved"]:
             requires_resolved.add(req_pkg)
 
+        for req in package["recommends"]:
+            recommends.add(req)
+
+        for req_pkg in package["recommends_resolved"]:
+            recommends_resolved.add(req_pkg)
+
+        for req in package["suggests"]:
+            suggests.add(req)
+
+        for req_pkg in package["suggests_resolved"]:
+            suggests_resolved.add(req_pkg)
+
         group["size"] += package["size"]
 
     group["packages"] = list(group_packages)
     group["requires"] = list(requires)
     group["requires_resolved"] = list(requires_resolved - group_packages)
+    group["recommends"] = list(recommends)
+    group["recommends_resolved"] = list(recommends_resolved - group_packages)
+    group["suggests"] = list(suggests)
+    group["suggests_resolved"] = list(suggests_resolved - group_packages)
 
     return group
 
