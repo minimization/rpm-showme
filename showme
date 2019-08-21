@@ -325,20 +325,29 @@ def graph_to_dot(graph, sizes=False, highlights=None):
 
 def graph_to_package_list(graph, sizes=False):
 
-    output = []
+    groups = []
+    packages = []
     
-    # Formatting
     for _, node in graph.items():
 
-        # Showing sizes
-        if sizes:
-            output.append('{name} ({size})'.format(name=node["name"], size=size(node["size"])))
+        if node["type"] == "group":
+            if sizes:
+                groups.append('[ {name} ({size}) ]'.format(name=node["name"], size=size(node["size"])))
+            else:
+                groups.append('[ {name} ]'.format(name=node["name"]))
+
         else:
-            output.append(node["name"])
+            if sizes:
+                packages.append('{name} ({size})'.format(name=node["name"], size=size(node["size"])))
+            else:
+                packages.append(node["name"])
 
-    output.sort()
+    groups.sort()
+    packages.sort()
 
-    return "\n".join(output)
+    output = "\n".join(groups + packages)
+
+    return output
 
 
 def packages_to_group(name, packages):
