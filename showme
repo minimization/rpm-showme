@@ -100,6 +100,7 @@ import dnf, json, subprocess, tempfile, argparse
 # Node = {
 #     "name": "node",
 #     "size": 323232,
+#      "type": "TYPE",   # package, group
 #     "dependencies": [
 #         "node1",
 #         "node2",
@@ -209,6 +210,7 @@ def compute_graph(packages, groups=None):
                 if name in group["packages"]:
                     node["name"] = group["name"]
                     node["size"] = group["size"]
+                    node["type"] = "group"
                     node["dependencies"] = group["requires_resolved"]
                     node["weak_dependencies"] = list(set(group["recommends_resolved"]) | set(group["suggests_resolved"]))
 
@@ -218,6 +220,7 @@ def compute_graph(packages, groups=None):
         if not node:
             node["name"] = package["name"]
             node["size"] = package["size"]
+            node["type"] = "package"
 
             # Package -> Group relations
             #
@@ -271,53 +274,51 @@ def size(num, suffix='B'):
     return "%.1f %s%s" % (num, 'T', suffix)
 
 
-def graph_to_dot(graph, sizes=False):
+def graph_to_dot(graph, sizes=False, highlights=None):
+    if not highlights:
+        highlights = []
 
-    dot = "digraph packages {\n"
+    
+    # Start of the graph
+    dot = 'digraph packages {\n'
 
-    if sizes:
-        # Hard dependencies
-        for _, node in graph.items():
-            dot += "\"" + node["name"] + " (" + size(node["size"])  + ")\" -> {"
-            dot += "\n"
-            for dep in node["dependencies"]:
-                dot += "    \"" + dep + " (" + size(graph[dep]["size"]) + ")\""
-                dot += "\n"
-            dot += "};"
-            dot += "\n"
+    # Formatting
+    for _, node in graph.items():
 
-        # Weak dependencies
-        for _, node in graph.items():
-            dot += "\"" + node["name"] + " (" + size(node["size"])  + ")\" -> {"
-            dot += "\n"
-            for dep in node["weak_dependencies"]:
-                dot += "    \"" + dep + " (" + size(graph[dep]["size"]) + ")\""
-                dot += "\n"
-            dot += "}[style=dashed];"
-            dot += "\n"
+        formatting = ['shape=none']
 
-    else:
-        # Hard dependencies
-        for _, node in graph.items():
-            dot += "\"" + node["name"] + "\" -> {"
-            dot += "\n"
-            for dep in node["dependencies"]:
-                dot += "    \"" + dep + "\""
-                dot += "\n"
-            dot += "};"
-            dot += "\n"
+        # Showing sizes
+        if sizes:
+            formatting.append('label="{name} ({size})"'.format(name=node["name"], size=size(node["size"])))
 
-        # Weak dependencies
-        for _, node in graph.items():
-            dot += "\"" + node["name"] + "\" -> {"
-            dot += "\n"
-            for dep in node["weak_dependencies"]:
-                dot += "    \"" + dep + "\""
-                dot += "\n"
-            dot += "}[style=dashed];"
-            dot += "\n"
+        # Highlighting certain nodes
+        if node["name"] in highlights:
+            formatting.append('fontsize=22')
+            formatting.append('fontcolor="#cc0066"')
 
-    dot += "}"
+        # Highlight groups
+        if node["type"] == "group":
+            formatting.append('shape=ellipse')
+
+        # Print it
+        if formatting:
+            dot += '"{node}" [{formatting}];\n'.format(node=node["name"], formatting=",".join(formatting))
+
+    # Hard dependencies
+    for _, node in graph.items():
+        dot += '"{node}" -> {{\n'.format(node=node["name"])
+        for dep in node["dependencies"]:
+            dot += '    "{dep}"\n'.format(dep=dep)
+        dot += "};\n"
+
+    # Weak dependencies
+    for _, node in graph.items():
+        dot += '"{node}" -> {{\n'.format(node=node["name"])
+        for dep in node["weak_dependencies"]:
+            dot += '    "{dep}"\n'.format(dep=dep)
+        dot += '}[style=dashed];\n'
+
+    dot += '}'
 
     return dot
 
@@ -392,66 +393,66 @@ def _add_javascript_to_svg(svg):
 document.addEventListener('click', function(e) {
       e = e || window.event;
       var target = e.target || e.srcElement;
-          text = target.textContent || text.innerText;   
+      text = target.parentElement.querySelector("title").textContent;
 
-          console.log("Clicked on: " + text);
-          // reset all strokes
-          var nodes = document.getElementsByClassName("edge");
+      console.log("Clicked on: " + text);
+      // reset all strokes
+      var nodes = document.getElementsByClassName("edge");
 
-          for (index = 0, len = nodes.length; index < len; ++index) {
-              //var title = nodes[index].querySelector("title").textContent.split("->");
-              id = nodes[index].id;
-              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "1");
-              document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "0.5");
-              document.getElementById(id).querySelector("path").setAttribute("stroke", "#444444");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "1");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "0.5");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#444444");
-          }
-          // reset text highlight
+      for (index = 0, len = nodes.length; index < len; ++index) {
+          //var title = nodes[index].querySelector("title").textContent.split("->");
+          id = nodes[index].id;
+          document.getElementById(id).querySelector("path").setAttribute("stroke-width", "1");
+          document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "0.5");
+          document.getElementById(id).querySelector("path").setAttribute("stroke", "#444444");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "1");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "0.5");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#444444");
+      }
+      // reset text highlight
+      pkgs = document.getElementsByClassName("node");
+      for (index2 = 0, len2 = pkgs.length; index2 < len2; ++index2) {
+          target_id = pkgs[index2].id;
+          document.getElementById(target_id).querySelector("text").setAttribute("font-weight", "normal");
+      }
+
+      // highlight deps
+      var nodes = document.getElementsByClassName("edge");
+      for (index = 0, len = nodes.length; index < len; ++index) {
+        var title = nodes[index].querySelector("title").textContent.split("->");
+
+        if (title[0] == text) {
+          id = nodes[index].id;
+          //console.log("ID:   " + id);
+          document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
+          document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
+          document.getElementById(id).querySelector("path").setAttribute("stroke", "#aa3333");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "1");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#aa3333");
+
+        }
+        if (title[1] == text) {
+          id = nodes[index].id;
+          document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
+          document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
+          document.getElementById(id).querySelector("path").setAttribute("stroke", "#333377");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "1");
+          document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#333377");
+        }
+
+        if (title[0] == text || title[1] == text) {
           pkgs = document.getElementsByClassName("node");
           for (index2 = 0, len2 = pkgs.length; index2 < len2; ++index2) {
+            var pkg_name = pkgs[index2].querySelector("title").textContent;
+            if (pkg_name == title[0] || pkg_name == title[1]) {
               target_id = pkgs[index2].id;
-              document.getElementById(target_id).querySelector("text").setAttribute("font-weight", "normal");
-          }
-
-          // highlight deps
-          var nodes = document.getElementsByClassName("edge");
-          for (index = 0, len = nodes.length; index < len; ++index) {
-            var title = nodes[index].querySelector("title").textContent.split("->");
-
-            if (title[0] == text) {
-              id = nodes[index].id;
-              //console.log("ID:   " + id);
-              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
-              document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
-              document.getElementById(id).querySelector("path").setAttribute("stroke", "#aa3333");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "1");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#aa3333");
-
-            }
-            if (title[1] == text) {
-              id = nodes[index].id;
-              document.getElementById(id).querySelector("path").setAttribute("stroke-width", "3");
-              document.getElementById(id).querySelector("path").setAttribute("stroke-opacity", "1");
-              document.getElementById(id).querySelector("path").setAttribute("stroke", "#333377");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke-width", "5");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke-opacity", "1");
-              document.getElementById(id).querySelector("polygon").setAttribute("stroke", "#333377");
-            }
-
-            if (title[0] == text || title[1] == text) {
-              pkgs = document.getElementsByClassName("node");
-              for (index2 = 0, len2 = pkgs.length; index2 < len2; ++index2) {
-                var pkg_name = pkgs[index2].querySelector("title").textContent;
-                if (pkg_name == title[0] || pkg_name == title[1]) {
-                  target_id = pkgs[index2].id;
-                  document.getElementById(target_id).querySelector("text").setAttribute("font-weight", "bold");
-                }
-              }
+              document.getElementById(target_id).querySelector("text").setAttribute("font-weight", "bold");
             }
           }
+        }
+      }
 
 
   }, false);
@@ -502,6 +503,7 @@ def main():
     parser.add_argument("--group-container", action="append", nargs=2, metavar=("GRPUP_NAME", "CONTAINER"), help="Group packages in the given container into a single node to simplify the graph. Useful, for example, when visualizing changes on top of a base image.")
 
     parser.add_argument("--sizes", action="store_true", help="Show package sizes on the graph")
+    parser.add_argument("-H", "--highlight", action="append", help="Highlight nodes in the graph")
 
     args = parser.parse_args()
 
@@ -529,7 +531,7 @@ def main():
     else:
         graph = compute_graph(packages)
 
-    dot = graph_to_dot(graph, sizes=args.sizes)
+    dot = graph_to_dot(graph, sizes=args.sizes, highlights=args.highlight)
 
     if args.how == "directed-graph":
         svg = dot_to_directed_graph_svg(dot)
