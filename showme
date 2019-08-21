@@ -323,6 +323,23 @@ def graph_to_dot(graph, sizes=False, highlights=None):
     return dot
 
 
+def graph_to_package_list(graph, sizes=False):
+
+    output = []
+    
+    # Formatting
+    for _, node in graph.items():
+
+        # Showing sizes
+        if sizes:
+            output.append('{name} ({size})'.format(name=node["name"], size=size(node["size"])))
+        else:
+            output.append(node["name"])
+
+    output.sort()
+
+    return "\n".join(output)
+
 
 def packages_to_group(name, packages):
 
@@ -497,8 +514,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("what", metavar="WHAT", help="What you want to see")
-    parser.add_argument("how", metavar="HOW", choices=["graph", "directed-graph"], help="How you want to see it. Choose from 'graph' or 'directed-graph'")
-    parser.add_argument("where", metavar="WHERE", help="Filename of the output")
+    parser.add_argument("how", metavar="HOW", choices=["graph", "directed-graph", "list"], help="How you want to see it. Choose from 'graph' or 'directed-graph'")
+    parser.add_argument("where", nargs="?", metavar="WHERE", help="Filename of the output")
 
     parser.add_argument("--group-container", action="append", nargs=2, metavar=("GRPUP_NAME", "CONTAINER"), help="Group packages in the given container into a single node to simplify the graph. Useful, for example, when visualizing changes on top of a base image.")
 
@@ -531,15 +548,24 @@ def main():
     else:
         graph = compute_graph(packages)
 
-    dot = graph_to_dot(graph, sizes=args.sizes, highlights=args.highlight)
+
+    if args.how == "graph":
+        dot = graph_to_dot(graph, sizes=args.sizes, highlights=args.highlight)
+        output = dot_to_graph_svg(dot)
 
     if args.how == "directed-graph":
-        svg = dot_to_directed_graph_svg(dot)
-    else:
-        svg = dot_to_graph_svg(dot)
+        dot = graph_to_dot(graph, sizes=args.sizes, highlights=args.highlight)
+        output = dot_to_directed_graph_svg(dot)
 
-    with open(args.where, "w") as output:
-        output.write(svg)
+    if args.how == "list":
+        output = graph_to_package_list(graph, sizes=args.sizes)
+
+
+    if args.where:
+        with open(args.where, "w") as output:
+            output.write(output)
+    else:
+        print (output)
 
 
 if __name__ == "__main__":
