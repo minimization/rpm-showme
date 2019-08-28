@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-# This file is part of dependency-visualiser hosted at:
-#   https://pagure.io/minimization/dependency-visualiser
+# This file is part of rpm-showme hosted at:
+#   https://pagure.io/minimization/rpm-showme
 #
 # Copyright (C) 2019 Adam Samalik <asamalik@redhat.com>
 #
