@@ -107,5 +107,5 @@ The script has been tested on Fedora 30.
 Dependencies:
 
 ```
-$ sudo dnf install graphviz podman
+$ sudo dnf install graphviz podman python3-jinja2
 ```
