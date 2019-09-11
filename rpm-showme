@@ -183,7 +183,7 @@ def load_packages_from_container_image(image):
     # Extract DNF and RPM data
     with tempfile.TemporaryDirectory() as tmp:
         cmd = "mkdir -p /workdir/var/lib && cp -r /var/lib/dnf /workdir/var/lib/ && cp -r /var/lib/rpm /workdir/var/lib/"
-        subprocess.run(['podman', 'run', '--rm', '-v', tmp+':/workdir:z', '-v', 'copy.sh:/copy.sh:z', image, '/bin/sh', '-c', cmd])
+        subprocess.run(['podman', 'run', '--rm', '-u', '0', '-v', tmp+':/workdir:z', '-v', 'copy.sh:/copy.sh:z', image, '/bin/sh', '-c', cmd])
         base.conf.installroot = tmp
         base.fill_sack()
 
