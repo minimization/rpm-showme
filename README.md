@@ -4,6 +4,12 @@ Dependency visualisation of an RPM-based installation (a system, an image, etc.)
 
 ## Usage
 
+The script requires the following dependencies on your system:
+
+```
+$ sudo dnf install graphviz podman python3-jinja2
+```
+
 Just tell the script what you what to show, how you want to see it, and where you want to save it. Like this:
 
 ```
@@ -100,12 +106,5 @@ $ ./rpm-showme fedora:30 report report.html --name "Fedora 30 base image" --add 
 
 See the [report.html](https://asamalik.fedorapeople.org/showme/report.html) and [report-sizes.html](https://asamalik.fedorapeople.org/showme/report-sizes.html) generated with the `--sizes` option.
 
-## Installation
 
-The script has been tested on Fedora 30.
 
-Dependencies:
-
-```
-$ sudo dnf install graphviz podman python3-jinja2
-```
