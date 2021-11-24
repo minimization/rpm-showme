@@ -113,13 +113,13 @@ document.addEventListener('click', function(e) {
 
 def dot_to_graph_svg(dot):
 
-    stage1 = subprocess.run(["sfdp", "-Gstart=3", "-Goverlap=prism"], capture_output=True, input=dot, encoding="UTF-8")
+    stage1 = subprocess.check_output(["sfdp", "-Gstart=3", "-Goverlap=prism"], input=dot, encoding="UTF-8")
 
-    stage2 = subprocess.run(["gvmap", "-e", "-d", "3"], capture_output=True, input=stage1.stdout, encoding="UTF-8")
+    stage2 = subprocess.check_output(["gvmap", "-e", "-d", "3"], input=stage1, encoding="UTF-8")
 
-    stage3 = subprocess.run(["neato", "-Gstart=3", "-n", "-Ecolor=#44444455", "-Tsvg"], capture_output=True, input=stage2.stdout, encoding="UTF-8")
+    stage3 = subprocess.check_output(["neato", "-Gstart=3", "-n", "-Ecolor=#44444455", "-Tsvg"], input=stage2, encoding="UTF-8")
 
-    svg = str(stage3.stdout)
+    svg = str(stage3)
 
     return _add_javascript_to_svg(svg)
 
